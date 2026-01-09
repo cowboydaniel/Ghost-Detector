@@ -68,55 +68,39 @@ static int levelFromScore(float score) {
   return 5;
 }
 
-static void drawGauge(int level, float mag, float delta, float trip, bool armed, bool inCooldown, bool inMagnet) {
+static void drawGauge(int level, bool armed, bool inCooldown, bool inMagnet) {
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
 
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.print("EMF GHOST DETECTOR");
+  display.print("EMF DETECTOR");
 
-  display.setCursor(0, 10);
-  display.print("MAG ");
-  display.print(mag, 1);
-  display.print("uT");
-
-  display.setCursor(0, 20);
-  display.print("DEL ");
-  display.print(delta, 1);
-  display.print("uT");
-
-  display.setCursor(0, 30);
-  display.print("TRIP ");
-  display.print(trip, 1);
-  display.print("uT");
-
-  display.setCursor(0, 40);
+  display.setCursor(0, 12);
   if (inMagnet) {
-    display.print("STATE MAGNET!");
+    display.print("ALERT: MAGNET");
   } else if (inCooldown) {
-    display.print("STATE COOLDOWN");
+    display.print("STATE: COOLDOWN");
   } else if (armed) {
-    display.print("STATE ARMED");
+    display.print("STATE: ARMED");
   } else {
-    display.print("STATE HOLD");
+    display.print("STATE: HOLD");
   }
 
+  display.setCursor(0, 24);
+  display.print("LEVEL ");
+  display.print(level);
+
   const int barX = 0;
-  const int barY = 52;
+  const int barY = 40;
   const int barW = 128;
-  const int barH = 10;
+  const int barH = 20;
   display.drawRect(barX, barY, barW, barH, SSD1306_WHITE);
 
   const int fill = map(level, 0, 5, 0, barW - 2);
   if (fill > 0) {
     display.fillRect(barX + 1, barY + 1, fill, barH - 2, SSD1306_WHITE);
   }
-
-  display.setTextSize(1);
-  display.setCursor(100, 40);
-  display.print("L");
-  display.print(level);
 
   display.display();
 }
@@ -302,7 +286,7 @@ void loop() {
 
   const float score = adelta - trip;
   const int level = levelFromScore(score);
-  drawGauge(level, filtMag, delta, trip, armed, inCooldown, inMagnet);
+  drawGauge(level, armed, inCooldown, inMagnet);
 
   delay(LOOP_MS);
 }
