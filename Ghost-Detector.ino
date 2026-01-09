@@ -1,7 +1,16 @@
 #include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <Adafruit_MMC56x3.h>
 
 Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
+
+// SSD1306 display (I2C)
+constexpr uint8_t SCREEN_WIDTH = 128;
+constexpr uint8_t SCREEN_HEIGHT = 64;
+constexpr int8_t OLED_RESET = -1;
+constexpr uint8_t SCREEN_ADDRESS = 0x3C;
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // ---------------- TUNING ----------------
 // Startup calibration time
@@ -59,11 +68,78 @@ static int levelFromScore(float score) {
   return 5;
 }
 
+static void drawGauge(int level, float mag, float delta, float trip, bool armed, bool inCooldown, bool inMagnet) {
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print("EMF GHOST DETECTOR");
+
+  display.setCursor(0, 10);
+  display.print("MAG ");
+  display.print(mag, 1);
+  display.print("uT");
+
+  display.setCursor(0, 20);
+  display.print("DEL ");
+  display.print(delta, 1);
+  display.print("uT");
+
+  display.setCursor(0, 30);
+  display.print("TRIP ");
+  display.print(trip, 1);
+  display.print("uT");
+
+  display.setCursor(0, 40);
+  if (inMagnet) {
+    display.print("STATE MAGNET!");
+  } else if (inCooldown) {
+    display.print("STATE COOLDOWN");
+  } else if (armed) {
+    display.print("STATE ARMED");
+  } else {
+    display.print("STATE HOLD");
+  }
+
+  const int barX = 0;
+  const int barY = 52;
+  const int barW = 128;
+  const int barH = 10;
+  display.drawRect(barX, barY, barW, barH, SSD1306_WHITE);
+
+  const int fill = map(level, 0, 5, 0, barW - 2);
+  if (fill > 0) {
+    display.fillRect(barX + 1, barY + 1, fill, barH - 2, SSD1306_WHITE);
+  }
+
+  display.setTextSize(1);
+  display.setCursor(100, 40);
+  display.print("L");
+  display.print(level);
+
+  display.display();
+}
+
 void setup() {
   Serial.begin(115200);
   while (!Serial) {}
 
   Wire.begin();
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println("SSD1306 allocation failed.");
+    while (1) {}
+  }
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("EMF GHOST DETECTOR");
+  display.setCursor(0, 12);
+  display.println("Calibrating...");
+  display.display();
 
   if (!mmc.begin()) {
     Serial.println("MMC5603 not found.");
@@ -83,6 +159,12 @@ void setup() {
   baselineMag = sum / CAL_SAMPLES;
   filtMag = baselineMag;
   noise_uT = 2.0f;
+
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println("Calibration done");
+  display.display();
+  delay(800);
 
   // Silent startup: prints only on events
 }
@@ -109,7 +191,8 @@ void loop() {
   // ---------------- STRONG MAGNET EVENT ----------------
   // If you shove a proper magnet near it, we WANT an event, not silence.
   // We also do NOT update baseline/noise during this condition.
-  if (filtMag >= SAT_uT) {
+  const bool inMagnet = (filtMag >= SAT_uT);
+  if (inMagnet) {
     // prevent spamming while the magnet is held in place
     if (now - t_lastSat >= SAT_COOLDOWN_MS) {
       Serial.print("MAGNET t=");
@@ -216,6 +299,10 @@ void loop() {
     Serial.println("uT");
     t_trigger = 0;
   }
+
+  const float score = adelta - trip;
+  const int level = levelFromScore(score);
+  drawGauge(level, filtMag, delta, trip, armed, inCooldown, inMagnet);
 
   delay(LOOP_MS);
 }
