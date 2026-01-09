@@ -1,4 +1,5 @@
 #include <Wire.h>
+#define SSD1306_NO_SPLASH
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_MMC56x3.h>
@@ -68,55 +69,39 @@ static int levelFromScore(float score) {
   return 5;
 }
 
-static void drawGauge(int level, float mag, float delta, float trip, bool armed, bool inCooldown, bool inMagnet) {
+static void drawGauge(int level, bool armed, bool inCooldown, bool inMagnet) {
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
 
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.print("EMF GHOST DETECTOR");
+  display.print(F("EMF DETECTOR"));
 
-  display.setCursor(0, 10);
-  display.print("MAG ");
-  display.print(mag, 1);
-  display.print("uT");
-
-  display.setCursor(0, 20);
-  display.print("DEL ");
-  display.print(delta, 1);
-  display.print("uT");
-
-  display.setCursor(0, 30);
-  display.print("TRIP ");
-  display.print(trip, 1);
-  display.print("uT");
-
-  display.setCursor(0, 40);
+  display.setCursor(0, 12);
   if (inMagnet) {
-    display.print("STATE MAGNET!");
+    display.print(F("ALERT: MAGNET"));
   } else if (inCooldown) {
-    display.print("STATE COOLDOWN");
+    display.print(F("STATE: COOLDOWN"));
   } else if (armed) {
-    display.print("STATE ARMED");
+    display.print(F("STATE: ARMED"));
   } else {
-    display.print("STATE HOLD");
+    display.print(F("STATE: HOLD"));
   }
 
+  display.setCursor(0, 24);
+  display.print(F("LEVEL "));
+  display.print(level);
+
   const int barX = 0;
-  const int barY = 52;
+  const int barY = 40;
   const int barW = 128;
-  const int barH = 10;
+  const int barH = 20;
   display.drawRect(barX, barY, barW, barH, SSD1306_WHITE);
 
   const int fill = map(level, 0, 5, 0, barW - 2);
   if (fill > 0) {
     display.fillRect(barX + 1, barY + 1, fill, barH - 2, SSD1306_WHITE);
   }
-
-  display.setTextSize(1);
-  display.setCursor(100, 40);
-  display.print("L");
-  display.print(level);
 
   display.display();
 }
@@ -128,7 +113,7 @@ void setup() {
   Wire.begin();
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println("SSD1306 allocation failed.");
+    Serial.println(F("SSD1306 allocation failed."));
     while (1) {}
   }
 
@@ -136,13 +121,13 @@ void setup() {
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println("EMF GHOST DETECTOR");
+  display.println(F("EMF GHOST DETECTOR"));
   display.setCursor(0, 12);
-  display.println("Calibrating...");
+  display.println(F("Calibrating..."));
   display.display();
 
   if (!mmc.begin()) {
-    Serial.println("MMC5603 not found.");
+    Serial.println(F("MMC5603 not found."));
     while (1) {}
   }
 
@@ -195,13 +180,13 @@ void loop() {
   if (inMagnet) {
     // prevent spamming while the magnet is held in place
     if (now - t_lastSat >= SAT_COOLDOWN_MS) {
-      Serial.print("MAGNET t=");
+      Serial.print(F("MAGNET t="));
       Serial.print(now);
-      Serial.print("ms  mag=");
+      Serial.print(F("ms  mag="));
       Serial.print(filtMag, 2);
-      Serial.print("uT  delta=");
+      Serial.print(F("uT  delta="));
       Serial.print(delta, 2);
-      Serial.println("uT");
+      Serial.println(F("uT"));
 
       t_lastSat = now;
 
@@ -272,37 +257,37 @@ void loop() {
       const float score = adelta - trip;
       const int level = levelFromScore(score);
 
-      Serial.print("ANOMALY t=");
+      Serial.print(F("ANOMALY t="));
       Serial.print(now);
-      Serial.print("ms  level=");
+      Serial.print(F("ms  level="));
       Serial.print(level);
-      Serial.print("  mag=");
+      Serial.print(F("  mag="));
       Serial.print(filtMag, 2);
-      Serial.print("uT  delta=");
+      Serial.print(F("uT  delta="));
       Serial.print(delta, 2);
-      Serial.print("uT  trip=");
+      Serial.print(F("uT  trip="));
       Serial.print(trip, 2);
-      Serial.print("uT  noise=");
+      Serial.print(F("uT  noise="));
       Serial.print(noise_uT, 2);
-      Serial.println("uT");
+      Serial.println(F("uT"));
     }
   }
 
   // After peak-hold finishes, print a single follow-up peak line
   if (t_trigger != 0 && (now - t_trigger) >= PEAK_HOLD_MS) {
-    Serial.print("PEAK   t=");
+    Serial.print(F("PEAK   t="));
     Serial.print(now);
-    Serial.print("ms  mag=");
+    Serial.print(F("ms  mag="));
     Serial.print(peakMag, 2);
-    Serial.print("uT  delta=");
+    Serial.print(F("uT  delta="));
     Serial.print(peakDelta, 2);
-    Serial.println("uT");
+    Serial.println(F("uT"));
     t_trigger = 0;
   }
 
   const float score = adelta - trip;
   const int level = levelFromScore(score);
-  drawGauge(level, filtMag, delta, trip, armed, inCooldown, inMagnet);
+  drawGauge(level, armed, inCooldown, inMagnet);
 
   delay(LOOP_MS);
 }
